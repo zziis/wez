@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#1f2227">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>وصل | خرائط العراق</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="assets/images/logo.jpg">
+  <link rel="preconnect" href="https://a.basemaps.cartocdn.com">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+  <div id="splash-screen" class="splash-screen">
+    <div class="splash-card">
+      <img src="assets/images/logo.jpg" alt="وصل" class="splash-logo">
+      <div class="splash-name">وَصِل</div>
+      <div class="splash-sub">طريقك أوضح</div>
+      <div class="splash-loader"><span></span></div>
+    </div>
+  </div>
+
+  <main id="app-root" class="app-root">
+    <div id="map-container" aria-label="الخريطة"></div>
+
+    <div id="network-banner" class="network-banner hidden">
+      <span class="network-dot"></span>
+      <span>لا يوجد اتصال بالشبكة — تظهر المحفوظات فقط</span>
+    </div>
+
+    <div id="safety-warning" class="safety-warning hidden">⚠ لا تكتب وأنت تسوق</div>
+    <div id="toast" class="toast hidden"></div>
+
+    <header class="map-topbar">
+      <button id="btn-menu" class="round-action dark" aria-label="القائمة">☰</button>
+      <div id="connection-pill" class="connection-pill online"><span></span><b>متصل</b></div>
+      <button id="btn-voice" class="round-action dark" aria-label="الصوت">🔊</button>
+    </header>
+
+    <div class="map-side-actions">
+      <button id="btn-recenter" class="round-action glass" aria-label="موقعي">⌖</button>
+      <button id="btn-report" class="round-action glass warning" aria-label="تبليغ">!</button>
+    </div>
+
+    <section id="home-controls" class="home-controls">
+      <button id="vehicle-pill" class="vehicle-pill" type="button">🚗 <span>سيارة</span> <span class="chev">⌄</span></button>
+      <button id="search-launch" class="search-launch" type="button">
+        <span class="search-launch-icon">⌕</span>
+        <span class="search-launch-text">إلى أين؟</span>
+        <span class="mic">🎙</span>
+      </button>
+      <div class="quick-actions">
+        <button data-category="saved"><span>🔖</span><b>المحفوظ</b></button>
+        <button data-category="fuel"><span>⛽</span><b>الوقود</b></button>
+        <button data-category="food"><span>🍴</span><b>طعام</b></button>
+        <button data-category="parking"><span>🅿</span><b>مواقف</b></button>
+      </div>
+    </section>
+
+    <section id="search-sheet" class="search-sheet hidden" aria-hidden="true">
+      <div class="sheet-head">
+        <button id="btn-close-search" class="sheet-back">←</button>
+        <div class="sheet-searchbox">
+          <span>⌕</span>
+          <input id="search-input" type="search" inputmode="search" autocomplete="off" placeholder="إلى أين؟">
+          <button id="btn-search-submit" aria-label="بحث">بحث</button>
+        </div>
+      </div>
+
+      <div class="search-shortcuts">
+        <button data-search="saved"><span>🔖</span>تم الحفظ</button>
+        <button data-search="fuel"><span>⛽</span>الوقود</button>
+        <button data-search="food"><span>🍴</span>طعام</button>
+        <button data-search="parking"><span>🅿</span>مواقف</button>
+      </div>
+
+      <div class="origin-row">
+        <span class="origin-icon">📍</span>
+        <div><b>موقعك</b><small id="origin-label">جارٍ تحديد الموقع…</small></div>
+      </div>
+
+      <div id="search-state" class="search-state">اكتب اسم شارع أو منطقة أو معلم ثم اضغط «بحث».</div>
+      <div id="search-results" class="search-results"></div>
+    </section>
+
+    <section id="route-sheet" class="route-sheet hidden" aria-hidden="true">
+      <div class="sheet-handle"></div>
+      <div class="route-main-row">
+        <div>
+          <div id="route-duration" class="route-duration">-- دقيقة</div>
+          <div id="route-distance" class="route-distance">-- كم</div>
+        </div>
+        <button id="btn-route-overview" class="overview-btn">نظرة عامة</button>
+      </div>
+      <h2 id="route-destination">الوجهة</h2>
+      <p id="route-description">أفضل مسار حسب بيانات الطريق المتاحة.</p>
+      <div class="route-buttons">
+        <button id="btn-save-trip" class="secondary-btn">حفظ للأوفلاين</button>
+        <button id="btn-start-nav" class="primary-btn">انطلق الآن</button>
+      </div>
+      <button id="btn-cancel-route" class="route-cancel">إلغاء المسار</button>
+    </section>
+
+    <section id="navigation-ui" class="navigation-ui hidden" aria-hidden="true">
+      <div class="nav-instruction">
+        <div id="nav-arrow" class="nav-arrow">↑</div>
+        <div class="nav-instruction-copy">
+          <strong id="nav-next-distance">-- م</strong>
+          <span id="nav-instruction-text">استمر في الطريق</span>
+        </div>
+      </div>
+
+      <div class="nav-floating-actions">
+        <button id="btn-nav-search" class="round-action dark">⌕</button>
+        <button id="btn-nav-overview" class="round-action dark">◎</button>
+      </div>
+
+      <div class="nav-bottom-card">
+        <div class="nav-stats">
+          <div><b id="nav-time-left">-- دقيقة</b><span>الوقت المتبقي</span></div>
+          <div><b id="nav-distance-left">-- كم</b><span>المسافة</span></div>
+          <div><b id="nav-speed">0</b><span>كم/س</span></div>
+        </div>
+        <button id="btn-stop-nav" class="stop-nav">إنهاء الملاحة</button>
+      </div>
+    </section>
+
+    <section id="location-gate" class="location-gate">
+      <div class="location-card">
+        <div class="location-illustration">⌖</div>
+        <h2>فعّل موقعك للبدء</h2>
+        <p>يستخدم وصل موقعك لتحديد نقطة الانطلاق وبناء المسار الحقيقي إلى وجهتك.</p>
+        <button id="btn-enable-location" class="primary-btn wide">تفعيل موقعي</button>
+        <button id="btn-location-retry" class="text-btn hidden">المحاولة مرة أخرى</button>
+        <small id="location-error"></small>
+      </div>
+    </section>
+
+    <div id="menu-backdrop" class="backdrop hidden"></div>
+    <aside id="side-menu" class="side-menu hidden">
+      <div class="menu-head">
+        <img src="assets/images/logo.jpg" alt="وصل">
+        <div><h3>وَصِل</h3><small>خرائط العراق</small></div>
+        <button id="btn-close-menu">×</button>
+      </div>
+      <button id="menu-saved">🔖 الرحلات والأماكن المحفوظة <span id="saved-count">0</span></button>
+      <button id="menu-theme">🌙 تبديل نمط الخريطة</button>
+      <label class="menu-select">🎙 صوت المساعد
+        <select id="voice-persona"><option value="female">نور</option><option value="male">علي</option></select>
+      </label>
+      <div class="menu-note">عند انقطاع الإنترنت سيعرض التطبيق الرحلات والأماكن التي حفظتها مسبقاً.</div>
+    </aside>
+
+    <div id="vehicle-backdrop" class="backdrop hidden"></div>
+    <section id="vehicle-sheet" class="small-sheet hidden">
+      <div class="sheet-handle"></div>
+      <h3>اختر نوع المركبة</h3>
+      <div class="vehicle-grid">
+        <button data-mode="car" data-label="سيارة">🚗<span>سيارة</span></button>
+        <button data-mode="taxi" data-label="تكسي">🚕<span>تكسي</span></button>
+        <button data-mode="bicycle" data-label="دراجة">🚲<span>دراجة</span></button>
+        <button data-mode="escooter" data-label="سكوتر">🛴<span>سكوتر</span></button>
+      </div>
+    </section>
+
+    <div id="report-backdrop" class="backdrop hidden"></div>
+    <section id="report-sheet" class="small-sheet hidden">
+      <div class="sheet-handle"></div>
+      <h3>تبليغ عن الطريق</h3>
+      <div class="report-grid">
+        <button data-hazard="camera">📷<span>كاميرا</span></button>
+        <button data-hazard="accident">💥<span>حادث</span></button>
+        <button data-hazard="bump">⚠️<span>مطب</span></button>
+        <button data-hazard="traffic">🚦<span>ازدحام</span></button>
+      </div>
+      <input id="report-details" class="report-details" placeholder="ملاحظة اختيارية">
+      <button id="btn-submit-report" class="primary-btn wide">إرسال التبليغ</button>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="js/iraq-data.js"></script>
+  <script src="js/voice-assistant.js"></script>
+  <script src="js/hazards-manager.js"></script>
+  <script src="js/offline-manager.js"></script>
+  <script src="js/map-engine.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

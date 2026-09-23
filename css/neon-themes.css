@@ -1,0 +1,100 @@
+/**
+ * WASIL - نظام ألوان النيون الخفيف المريح للعين (الوضع الصباحي والمسائي) 2026
+ */
+
+:root {
+    /* الخطوط العربية الحديثة */
+    --font-primary: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+    --font-digital: 'Orbitron', 'Cairo', monospace;
+
+    /* أنوار النيون المشتركة */
+    --neon-cyan: #00f2fe;
+    --neon-cyan-glow: rgba(0, 242, 254, 0.4);
+    --neon-amber: #ffb300;
+    --neon-amber-glow: rgba(255, 179, 0, 0.4);
+    --neon-green: #00e676;
+    --neon-green-glow: rgba(0, 230, 118, 0.4);
+    --neon-red: #ff3d71;
+    --neon-red-glow: rgba(255, 61, 113, 0.5);
+    --neon-purple: #c084fc;
+    --neon-purple-glow: rgba(192, 132, 252, 0.4);
+
+    --radius-sm: 8px;
+    --radius-md: 14px;
+    --radius-lg: 20px;
+    --radius-full: 9999px;
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ==================== الثيم المسائي (Night Neon Mode) ==================== */
+body[data-theme="night"] {
+    --bg-primary: #070b14;
+    --bg-secondary: #0d1527;
+    --bg-card: rgba(13, 21, 39, 0.82);
+    --bg-glass: rgba(15, 23, 42, 0.75);
+    --border-glass: rgba(0, 242, 254, 0.18);
+    --border-subtle: rgba(255, 255, 255, 0.08);
+
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --text-accent: var(--neon-cyan);
+
+    --hud-bg: rgba(7, 11, 20, 0.9);
+    --hud-glow: 0 8px 32px 0 rgba(0, 242, 254, 0.15);
+    --shadow-card: 0 10px 30px -5px rgba(0, 0, 0, 0.6);
+
+    --color-camera: #ff3d71;
+    --color-checkpoint: #38bdf8;
+    --color-accident: #f59e0b;
+    --color-bump: #fbbf24;
+    --color-traffic: #e11d48;
+}
+
+/* ==================== الثيم الصباحي (Day Soft Neon Mode) ==================== */
+body[data-theme="day"] {
+    --bg-primary: #f1f5f9;
+    --bg-secondary: #ffffff;
+    --bg-card: rgba(255, 255, 255, 0.88);
+    --bg-glass: rgba(255, 255, 255, 0.82);
+    --border-glass: rgba(14, 116, 144, 0.25);
+    --border-subtle: rgba(0, 0, 0, 0.06);
+
+    --text-primary: #0f172a;
+    --text-secondary: #334155;
+    --text-muted: #64748b;
+    --text-accent: #0284c7;
+
+    --hud-bg: rgba(255, 255, 255, 0.94);
+    --hud-glow: 0 8px 24px 0 rgba(0, 0, 0, 0.12);
+    --shadow-card: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
+
+    --color-camera: #dc2626;
+    --color-checkpoint: #0284c7;
+    --color-accident: #d97706;
+    --color-bump: #b45309;
+    --color-traffic: #be123c;
+}
+
+/* تأثير التوهج النيوني للأزرار والبطاقات */
+.neon-glow-cyan {
+    box-shadow: 0 0 15px var(--neon-cyan-glow);
+}
+
+.neon-glow-amber {
+    box-shadow: 0 0 15px var(--neon-amber-glow);
+}
+
+.neon-glow-green {
+    box-shadow: 0 0 15px var(--neon-green-glow);
+}
+
+.neon-glow-red {
+    box-shadow: 0 0 18px var(--neon-red-glow);
+}
+
+.neon-border {
+    border: 1px solid var(--border-glass);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
