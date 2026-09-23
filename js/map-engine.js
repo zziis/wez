@@ -1,18 +1,61 @@
 class MapEngine{
   constructor(containerId){
-    this.containerId=containerId;this.map=null;this.tileLayer=null;this.theme='night';
+    this.containerId=containerId;this.map=null;this.baseLayer=null;this.theme='night';
     this.routeLayer=L.layerGroup();this.hazardLayer=L.layerGroup();this.userMarker=null;this.destinationMarker=null;this.originMarker=null;this.currentUser=null;
   }
   init(){
-    this.map=L.map(this.containerId,{center:[33.3152,44.3661],zoom:13,zoomControl:false,attributionControl:false,preferCanvas:true,zoomAnimation:true,fadeAnimation:true,markerZoomAnimation:true,inertia:true,inertiaDeceleration:2600,zoomSnap:.25,zoomDelta:.5});
+    this.map=L.map(this.containerId,{
+      center:[33.3152,44.3661],zoom:13,zoomControl:false,attributionControl:true,preferCanvas:true,
+      zoomAnimation:true,fadeAnimation:true,markerZoomAnimation:true,inertia:true,inertiaDeceleration:2600,
+      zoomSnap:.25,zoomDelta:.5,minZoom:2,
+      maxBounds:[[-85,-Infinity],[85,Infinity]],maxBoundsViscosity:1
+    });
     this.routeLayer.addTo(this.map);this.hazardLayer.addTo(this.map);this.setTheme('night');
     return this.map;
   }
   setTheme(theme){
-    this.theme=theme;if(this.tileLayer)this.map.removeLayer(this.tileLayer);
-    const url=theme==='day'?'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png':'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-    this.tileLayer=L.tileLayer(url,{maxZoom:20,subdomains:'abcd',crossOrigin:true,updateWhenIdle:false,keepBuffer:5}).addTo(this.map);
+    this.theme=theme;
+    if(this.baseLayer){this.map.removeLayer(this.baseLayer);this.baseLayer=null}
+
+    // OpenFreeMap + MapLibre: خدمة خرائط بدون API Key.
+    // نخفي طبقات الكتابة من النمط نفسه حتى تبقى الخريطة نظيفة بدون أسماء مطبوعة.
+    const styleUrl=theme==='night'
+      ? 'https://tiles.openfreemap.org/styles/dark'
+      : 'https://tiles.openfreemap.org/styles/positron';
+
+    if(window.L && typeof L.maplibreGL==='function' && window.maplibregl){
+      this.baseLayer=L.maplibreGL({
+        style:styleUrl,
+        interactive:false,
+        attributionControl:true
+      }).addTo(this.map);
+
+      const gl=this.baseLayer.getMaplibreMap();
+      gl.once('load',()=>this._hideBaseLabels(gl));
+      gl.on('error',e=>{
+        // لا نعرض رسائل المزود فوق الخريطة للمستخدم؛ نكتفي بالسجل ونبقي الواجهة تعمل.
+        if(e?.error)console.warn('OpenFreeMap:',e.error.message||e.error);
+      });
+    }else{
+      // احتياط إذا تعذر تحميل MapLibre: طبقة Esri أساسية بلا طبقة أسماء منفصلة.
+      const fallback=theme==='night'
+        ? 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
+        : 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}';
+      this.baseLayer=L.tileLayer(fallback,{maxNativeZoom:16,maxZoom:20,crossOrigin:true,updateWhenIdle:false,keepBuffer:6}).addTo(this.map);
+    }
     document.body.dataset.theme=theme;
+  }
+  _hideBaseLabels(gl){
+    try{
+      const style=gl.getStyle();
+      if(!style?.layers)return;
+      style.layers.forEach(layer=>{
+        const textField=layer?.layout?.['text-field'];
+        if(textField!==undefined){
+          try{gl.setLayoutProperty(layer.id,'text-field','')}catch(_e){}
+        }
+      });
+    }catch(e){console.warn('تعذر إخفاء بعض تسميات الخريطة',e)}
   }
   updateUserPosition(position,navigating=false){
     this.currentUser=position;const heading=Number.isFinite(position.heading)?position.heading:0;
