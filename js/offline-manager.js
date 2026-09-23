@@ -35,7 +35,7 @@ class OfflineManager {
   deleteTrip(id){this.savedTrips=this.savedTrips.filter(p=>p.id!==id);this._save(this.savedTripsKey,this.savedTrips)}
   async registerServiceWorker(){
     if('serviceWorker' in navigator && location.protocol!=='file:'){
-      try{await navigator.serviceWorker.register('./sw.js')}catch(e){console.warn('SW registration failed',e)}
+      try{const reg=await navigator.serviceWorker.register('./sw.js?v=2.3.0',{updateViaCache:'none'});await reg.update().catch(()=>{})}catch(e){console.warn('SW registration failed',e)}
     }
   }
 }

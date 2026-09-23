@@ -3,24 +3,46 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <meta name="wasil-version" content="2.3.0">
   <meta name="theme-color" content="#1f2227">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>وصل | خرائط العراق</title>
-  <link rel="manifest" href="manifest.json">
-  <link rel="icon" href="assets/images/logo.jpg">
+  <link rel="manifest" href="manifest.json?v=2.3.0">
+  <link rel="icon" href="assets/images/logo.jpg?v=2.3.0">
   <link rel="preconnect" href="https://tiles.openfreemap.org">
   <link rel="preconnect" href="https://unpkg.com">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.23.0/dist/maplibre-gl.css">
-  <link rel="stylesheet" href="css/style.css">
-  <link rel="stylesheet" href="css/responsive.css">
+  <link rel="stylesheet" href="css/style.css?v=2.3.0">
+  <link rel="stylesheet" href="css/responsive.css?v=2.3.0">
+
+  <script>
+  (function(){
+    const VERSION='2.3.0';
+    const KEY='wasil_boot_version';
+    if(location.protocol==='file:') return;
+    if(localStorage.getItem(KEY)===VERSION) return;
+    localStorage.setItem(KEY,VERSION);
+    Promise.all([
+      ('caches' in window) ? caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('wasil-')).map(k=>caches.delete(k)))) : Promise.resolve(),
+      ('serviceWorker' in navigator) ? navigator.serviceWorker.getRegistrations().then(rs=>Promise.all(rs.map(r=>r.unregister()))) : Promise.resolve()
+    ]).then(()=>{
+      const u=new URL(location.href);
+      u.searchParams.set('v',VERSION);
+      location.replace(u.toString());
+    }).catch(()=>{});
+  })();
+  </script>
 </head>
 <body>
   <div id="splash-screen" class="splash-screen">
     <div class="splash-card">
-      <img src="assets/images/logo.jpg" alt="وصل" class="splash-logo">
+      <img src="assets/images/logo.jpg?v=2.3.0" alt="وصل" class="splash-logo">
       <div class="splash-name">وَصِل</div>
       <div class="splash-sub">طريقك أوضح</div>
       <div class="splash-loader"><span></span></div>
@@ -146,7 +168,7 @@
     <div id="menu-backdrop" class="backdrop hidden"></div>
     <aside id="side-menu" class="side-menu hidden">
       <div class="menu-head">
-        <img src="assets/images/logo.jpg" alt="وصل">
+        <img src="assets/images/logo.jpg?v=2.3.0" alt="وصل">
         <div><h3>وَصِل</h3><small>خرائط العراق</small></div>
         <button id="btn-close-menu">×</button>
       </div>
@@ -188,11 +210,11 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="https://unpkg.com/maplibre-gl@5.23.0/dist/maplibre-gl.js"></script>
   <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js"></script>
-  <script src="js/iraq-data.js"></script>
-  <script src="js/voice-assistant.js"></script>
-  <script src="js/hazards-manager.js"></script>
-  <script src="js/offline-manager.js"></script>
-  <script src="js/map-engine.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/iraq-data.js?v=2.3.0"></script>
+  <script src="js/voice-assistant.js?v=2.3.0"></script>
+  <script src="js/hazards-manager.js?v=2.3.0"></script>
+  <script src="js/offline-manager.js?v=2.3.0"></script>
+  <script src="js/map-engine.js?v=2.3.0"></script>
+  <script src="js/app.js?v=2.3.0"></script>
 </body>
 </html>

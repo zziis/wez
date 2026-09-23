@@ -29,3 +29,12 @@
 - إبقاء المسار، موقع المستخدم، وجهة الوصول، والتنبيهات فوق الخريطة.
 - رفع رقم كاش Service Worker إلى v2.2 لمسح البلاطات والملفات القديمة تلقائياً.
 - إضافة طبقة احتياط Esri أساسية بدون طبقة أسماء منفصلة إذا تعذر تحميل MapLibre.
+
+
+=== V2.3 DEPLOY FIX ===
+- This ZIP is deploy-ready: index.html is at the ZIP root, not inside a nested folder.
+- Old Wasil Service Worker/cache is cleared once automatically.
+- Local CSS/JS references use v=2.3.0 cache-busting.
+- Service Worker now prefers the network for same-origin app files, with cache only as offline fallback.
+- force-update.html is included. After uploading all files, open /force-update.html once on the live site if an old version is still visible.
+- مزود الخريطة القديم غير مستخدم في هذه الحزمة.
