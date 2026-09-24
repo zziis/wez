@@ -278,12 +278,13 @@ class MapEngine {
     const nextDistance = Number(options.nextDistance || 0);
     const heading = Number(options.heading ?? position.navHeading ?? position.heading ?? 0);
     const speed = Number(position.speed || 0);
-    let zoom = 18.35;
-    if (nextDistance > 0 && nextDistance < 70) zoom = 19.35;
-    else if (nextDistance > 0 && nextDistance < 160) zoom = 18.95;
-    else if (speed > 75) zoom = 17.95;
+    let zoom = 17.85;
+    if (nextDistance > 0 && nextDistance < 55) zoom = 19.05;
+    else if (nextDistance > 0 && nextDistance < 140) zoom = 18.55;
+    else if (nextDistance > 0 && nextDistance < 320) zoom = 18.15;
+    else if (speed > 75) zoom = 17.35;
 
-    const offset = nextDistance > 0 && nextDistance < 120 ? 150 : 205;
+    const offset = nextDistance > 0 && nextDistance < 120 ? 155 : 235;
     const target = this._aheadTarget(position.lat, position.lng, zoom, heading, offset);
     if (Math.abs(this.map.getZoom() - zoom) > 0.22) {
       this.map.flyTo(target, zoom, { animate: true, duration: 0.38 });
@@ -367,14 +368,14 @@ class MapEngine {
     this.routePts = pts;
 
     L.polyline(pts, {
-      color: '#25c7ee',
-      weight: this.navMode ? 24 : 16,
-      opacity: this.navMode ? 0.16 : 0.17,
+      color: '#092f3a',
+      weight: this.navMode ? 22 : 16,
+      opacity: this.navMode ? 0.72 : 0.17,
       lineCap: 'round',
       lineJoin: 'round'
     }).addTo(this.routeLayer);
 
-    const mainWeight = this.navMode ? 11 : 9;
+    const mainWeight = this.navMode ? 10 : 9;
     let mainLine;
 
     if (this.navMode) {
@@ -387,15 +388,15 @@ class MapEngine {
       }).addTo(this.routeLayer);
 
       this.progressRemainingOuter = L.polyline(pts, {
-        color: '#ffffff',
-        weight: mainWeight + 5,
-        opacity: 0.98,
+        color: '#1a6d7d',
+        weight: mainWeight + 4,
+        opacity: 0.92,
         lineCap: 'round',
         lineJoin: 'round'
       }).addTo(this.routeLayer);
 
       this.progressRemainingInner = L.polyline(pts, {
-        color: '#28d5ef',
+        color: '#29d8ee',
         weight: mainWeight,
         opacity: 1,
         lineCap: 'round',

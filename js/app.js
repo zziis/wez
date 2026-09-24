@@ -44,6 +44,7 @@ class WasilAppV2{
 
     $('btn-route-overview').addEventListener('click',()=>this.mapEngine.routeOverview());
     $('btn-nav-overview').addEventListener('click',()=>this.mapEngine.routeOverview());
+    $('btn-nav-recenter')?.addEventListener('click',()=>this.mapEngine.centerOnUser(18.15,true));
     $('btn-nav-orientation')?.addEventListener('click',()=>{const enabled=this.mapEngine.setHeadingUp(!this.mapEngine.headingUp);this.updateOrientationButton();this.toast(enabled?'اتجاه السير أصبح للأعلى':'تم تثبيت الشمال للأعلى')});
     $('btn-cancel-route').addEventListener('click',()=>this.cancelRoute());
     $('btn-start-nav').addEventListener('click',()=>this.startNavigation());
@@ -213,6 +214,8 @@ class WasilAppV2{
 
   async handleShortcut(type){
     if(type==='saved'){this.openSearch();this.renderSavedResults();return}
+    if(type==='home'||type==='work'){this.openSearch();const label=type==='home'?'المنزل':'العمل';document.getElementById('search-input').value=label;this.toast(`حدد ${label} أول مرة من نتائج البحث ثم احفظه`);return}
+    if(type==='new'){this.openSearch();document.getElementById('search-input').focus();return}
     const labels={fuel:'محطة وقود',food:'مطعم',parking:'موقف سيارات'};this.openSearch();document.getElementById('search-input').value=labels[type]||'';await this.performSearch(labels[type]||'');
   }
 
@@ -330,7 +333,7 @@ class WasilAppV2{
         if(d<38&&this.currentStepIndex<steps.length-1){this.currentStepIndex++;const nextText=this.getCurrentInstruction();this.voiceAssistant.speak(nextText,true)}
         document.getElementById('nav-next-distance').textContent=this.formatMeters(d);
       }
-      current=steps[Math.min(this.currentStepIndex,steps.length-1)];document.getElementById('nav-instruction-text').textContent=this.translateStep(current);document.getElementById('nav-arrow').textContent=this.stepArrow(current);
+      current=steps[Math.min(this.currentStepIndex,steps.length-1)];document.getElementById('nav-instruction-text').textContent=this.translateStep(current);document.getElementById('nav-arrow').textContent=this.stepArrow(current);const miniA=document.getElementById('nav-mini-arrow'),miniD=document.getElementById('nav-mini-distance');if(miniA)miniA.textContent=this.stepArrow(current);if(miniD)miniD.textContent=this.formatMeters(nextDistance);
       if(forceSpeak&&current)this.voiceAssistant.speak(this.translateStep(current),true);
     }
 
