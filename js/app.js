@@ -1,9 +1,9 @@
 class WasilAppV2{
   constructor(){
     this.mapEngine=null;this.offlineManager=null;this.voiceAssistant=null;this.hazardsManager=null;
-    this.currentPosition=null;this.watchId=null;this.selectedDestination=null;this.activeRoute=null;this.routeAlternatives=[];
+    this.currentPosition=null;this.watchId=null;this.selectedDestination=null;this.activeRoute=null;this.routeAlternatives=[];this.routeChoices=[];this.activeRouteIndex=0;
     this.isNavigating=false;this.currentStepIndex=1;this.routeSteps=[];this.routeMetrics=null;this.alertedHazards=new Set();
-    this.currentMode='car';this.currentModeLabel='سيارة';this.selectedHazardType='camera';this.selectedMarkerShape=localStorage.getItem('wasil_marker_shape')||'triangle';this.toastTimer=null;this.safetyTimer=null;this.lastRoadHazardLoad=null;
+    this.currentMode='car';this.currentModeLabel='سيارة';this.selectedHazardType='camera';this.selectedMarkerShape=localStorage.getItem('wasil_marker_shape')||'triangle';this.toastTimer=null;this.safetyTimer=null;this.searchTimer=null;this.lastRoadHazardLoad=null;
   }
 
   async init(){
@@ -35,9 +35,15 @@ class WasilAppV2{
     $('search-launch').addEventListener('click',()=>this.openSearch());
     $('btn-close-search').addEventListener('click',()=>this.closeSearch());
     $('btn-search-submit').addEventListener('click',()=>this.performSearch($('search-input').value));
+    $('btn-search-clear')?.addEventListener('click',()=>{const input=$('search-input');input.value='';$('btn-search-clear').classList.add('hidden');this.renderSearchLanding();input.focus()});
     $('search-input').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();this.performSearch(e.currentTarget.value)}});
+    $('search-input').addEventListener('input',e=>{const q=e.currentTarget.value.trim();$('btn-search-clear')?.classList.toggle('hidden',!q);clearTimeout(this.searchTimer);this.searchTimer=setTimeout(()=>{if(q.length>=2)this.renderLocalSuggestions(q);else if(!q)this.renderSearchLanding()},160)});
     $('search-input').addEventListener('focus',()=>this.maybeWarnDriving());
     $('btn-nav-search').addEventListener('click',()=>{this.maybeWarnDriving();this.openSearch()});
+
+    $('btn-preview-route')?.addEventListener('click',()=>{if(this.selectedDestination){this.hideDestinationPreview(false);this.buildRoute(this.selectedDestination)}});
+    $('btn-preview-save')?.addEventListener('click',()=>{if(!this.selectedDestination)return;this.offlineManager.savePlace(this.selectedDestination);this.updateSavedCount();this.toast('تم حفظ الوجهة');$('btn-preview-save').textContent='★ محفوظ'});
+    $('btn-preview-cancel')?.addEventListener('click',()=>this.hideDestinationPreview(true));
 
     document.querySelectorAll('[data-category]').forEach(btn=>btn.addEventListener('click',()=>this.handleShortcut(btn.dataset.category)));
     document.querySelectorAll('[data-search]').forEach(btn=>btn.addEventListener('click',()=>this.handleShortcut(btn.dataset.search)));
@@ -201,12 +207,15 @@ class WasilAppV2{
 
   openSearch(){
     const sheet=document.getElementById('search-sheet');sheet.classList.remove('hidden');sheet.setAttribute('aria-hidden','false');document.getElementById('home-controls').classList.add('hidden');
-    if(!this.isNavigating)setTimeout(()=>document.getElementById('search-input').focus(),120);
+    const input=document.getElementById('search-input');
+    if(!input.value.trim())this.renderSearchLanding();
+    document.getElementById('btn-search-clear')?.classList.toggle('hidden',!input.value.trim());
+    if(!this.isNavigating)setTimeout(()=>input.focus(),120);
     this.maybeWarnDriving();
   }
   closeSearch(){
     document.getElementById('search-sheet').classList.add('hidden');document.getElementById('search-sheet').setAttribute('aria-hidden','true');
-    if(!this.isNavigating&&!this.activeRoute)document.getElementById('home-controls').classList.remove('hidden');
+    if(!this.isNavigating&&!this.activeRoute&&document.getElementById('destination-preview')?.classList.contains('hidden'))document.getElementById('home-controls').classList.remove('hidden');
   }
   maybeWarnDriving(){
     if(this.isNavigating||(this.currentPosition?.speed||0)>5){const el=document.getElementById('safety-warning');el.classList.remove('hidden');clearTimeout(this.safetyTimer);this.safetyTimer=setTimeout(()=>el.classList.add('hidden'),3500)}
@@ -214,8 +223,13 @@ class WasilAppV2{
 
   async handleShortcut(type){
     if(type==='saved'){this.openSearch();this.renderSavedResults();return}
-    if(type==='home'||type==='work'){this.openSearch();const label=type==='home'?'المنزل':'العمل';document.getElementById('search-input').value=label;this.toast(`حدد ${label} أول مرة من نتائج البحث ثم احفظه`);return}
-    if(type==='new'){this.openSearch();document.getElementById('search-input').focus();return}
+    if(type==='home'||type==='work'){
+      const label=type==='home'?'المنزل':'العمل';
+      const saved=(this.offlineManager.getSavedPlaces?.()||[]).find(p=>(p.name||'').trim()===label);
+      if(saved){this.selectSearchResult({...saved,kind:'place'});return}
+      this.openSearch();document.getElementById('search-input').value='';this.renderSearchLanding();this.toast(`ابحث عن موقع ${label} ثم احفظه باسم «${label}»`);return
+    }
+    if(type==='new'){this.openSearch();const input=document.getElementById('search-input');input.value='';this.renderSearchLanding();input.focus();return}
     const labels={fuel:'محطة وقود',food:'مطعم',parking:'موقف سيارات'};this.openSearch();document.getElementById('search-input').value=labels[type]||'';await this.performSearch(labels[type]||'');
   }
 
@@ -223,16 +237,19 @@ class WasilAppV2{
     const q=(rawQuery||'').trim();if(!q){this.toast('اكتب اسم المكان أولاً');return}
     const state=document.getElementById('search-state'),results=document.getElementById('search-results');results.innerHTML='';
     if(!this.offlineManager.isOnline()){this.renderSavedResults(q);return}
-    state.textContent='جارٍ البحث عن الأماكن…';
+    state.textContent='جارٍ البحث عن الأماكن والطرق…';
     try{
-      let url=`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=8&countrycodes=iq&accept-language=ar&q=${encodeURIComponent(q)}`;
-      if(this.currentPosition && ['محطة وقود','مطعم','موقف سيارات'].includes(q)){
-        const {lat,lng}=this.currentPosition;const box=[lng-.18,lat+.14,lng+.18,lat-.14].join(',');url+=`&viewbox=${box}&bounded=1`;
+      let url=`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=10&countrycodes=iq&accept-language=ar&q=${encodeURIComponent(q)}`;
+      if(this.currentPosition){
+        const {lat,lng}=this.currentPosition;const box=[lng-.35,lat+.28,lng+.35,lat-.28].join(',');url+=`&viewbox=${box}`;
+        if(['محطة وقود','مطعم','موقف سيارات'].includes(q))url+='&bounded=1';
       }
       const res=await fetch(url,{headers:{'Accept':'application/json'}});if(!res.ok)throw new Error('search');const data=await res.json();
-      const places=data.map(x=>({id:`osm-${x.place_id}`,name:x.name||x.display_name?.split(',')[0]||'مكان',address:x.display_name||'',lat:+x.lat,lng:+x.lon,kind:'place'}));
-      if(!places.length){const local=this.localDataSearch(q);this.renderSearchResults(local);state.textContent=local.length?'نتائج من دليل وصل المحلي':'لم يتم العثور على نتائج.'}
-      else{this.renderSearchResults(places);state.textContent=`تم العثور على ${places.length} نتيجة`}
+      const remote=data.map(x=>({id:`osm-${x.place_id}`,name:x.name||x.display_name?.split(',')[0]||'مكان',address:x.display_name||'',lat:+x.lat,lng:+x.lon,kind:'place'}));
+      const local=this.localDataSearch(q);
+      const seen=new Set();const places=[];
+      [...local,...remote].forEach(x=>{const key=`${(x.name||'').toLowerCase()}|${(+x.lat).toFixed(4)}|${(+x.lng).toFixed(4)}`;if(!seen.has(key)){seen.add(key);places.push(x)}});
+      this.renderSearchResults(places.slice(0,12));state.textContent=places.length?`تم العثور على ${places.length} نتيجة — اختر وجهتك`:'لم يتم العثور على نتائج.';
     }catch{
       const local=this.localDataSearch(q);this.renderSearchResults(local);state.textContent=local.length?'تعذر البحث الشبكي، تظهر نتائج دليل وصل المحلي.':'تعذر الاتصال بخدمة البحث. حاول لاحقاً.';
     }
@@ -248,12 +265,45 @@ class WasilAppV2{
     return out.slice(0,10);
   }
 
+  getRecentDestinations(){
+    try{return JSON.parse(localStorage.getItem('wasil_recent_destinations')||'[]').filter(x=>Number.isFinite(+x.lat)&&Number.isFinite(+x.lng)).slice(0,6)}catch{return[]}
+  }
+
+  rememberDestination(item){
+    try{
+      const clean={id:item.id||`recent-${Date.now()}`,name:item.name||'وجهة',address:item.address||'',lat:+item.lat,lng:+item.lng,kind:'recent'};
+      const list=this.getRecentDestinations().filter(x=>Math.abs(+x.lat-clean.lat)>.00005||Math.abs(+x.lng-clean.lng)>.00005);
+      localStorage.setItem('wasil_recent_destinations',JSON.stringify([clean,...list].slice(0,6)));
+    }catch{}
+  }
+
+  renderSearchLanding(){
+    const recent=this.getRecentDestinations();
+    const saved=(this.offlineManager?.getSavedPlaces?.()||[]).slice(0,5).map(x=>({...x,kind:'saved'}));
+    const items=[...recent,...saved];
+    document.getElementById('search-state').textContent=items.length?'الوجهات الأخيرة والمحـفوظة':'ابدأ بالكتابة لعرض اقتراحات محلية، أو اضغط «بحث» للبحث عبر الإنترنت.';
+    this.renderSearchResults(items);
+  }
+
+  renderLocalSuggestions(q){
+    const needle=(q||'').trim();if(needle.length<2)return;
+    const local=this.localDataSearch(needle);
+    const saved=(this.offlineManager?.getSavedPlaces?.()||[]).filter(x=>(x.name||'').toLowerCase().includes(needle.toLowerCase())||(x.address||'').toLowerCase().includes(needle.toLowerCase())).map(x=>({...x,kind:'saved'}));
+    const items=[...saved,...local].slice(0,8);
+    document.getElementById('search-state').textContent=items.length?'اقتراحات سريعة من دليل العراق والمحـفوظات — اضغط «بحث» لنتائج أوسع':'لا توجد اقتراحات محلية؛ اضغط «بحث» للبحث عبر الإنترنت.';
+    this.renderSearchResults(items);
+  }
+
   renderSearchResults(items){
     const box=document.getElementById('search-results');box.innerHTML='';
-    items.forEach(item=>{
-      const el=document.createElement('div');el.className='result-item';el.innerHTML=`<div class="result-icon">${item.kind==='trip'?'🛣️':'📍'}</div><div class="result-copy"><b>${this.escapeHtml(item.name)}</b><small>${this.escapeHtml(item.address||item.subtitle||'')}</small></div><button class="result-save" title="حفظ">${item.kind==='trip'?'✓':'☆'}</button>`;
-      el.querySelector('.result-copy').addEventListener('click',()=>this.selectSearchResult(item));el.querySelector('.result-icon').addEventListener('click',()=>this.selectSearchResult(item));
-      el.querySelector('.result-save').addEventListener('click',e=>{e.stopPropagation();if(item.kind==='trip'){this.toast('هذه الرحلة محفوظة مسبقاً')}else{this.offlineManager.savePlace(item);this.updateSavedCount();e.currentTarget.textContent='★';this.toast('تم حفظ المكان')}});
+    (items||[]).forEach(item=>{
+      const el=document.createElement('div');el.className='result-item';
+      const distance=(this.currentPosition&&Number.isFinite(+item.lat)&&Number.isFinite(+item.lng))?this.haversine(this.currentPosition.lat,this.currentPosition.lng,+item.lat,+item.lng):null;
+      const meta=[item.address||item.subtitle||'',distance!=null?this.formatDistance(distance):''].filter(Boolean).join(' • ');
+      const icon=item.kind==='trip'?'<span class="trip-result-glyph">🛣</span>':'<img src="assets/waze-import/search-pin.png?v=2.9.0" alt="">';
+      el.innerHTML=`<div class="result-icon">${icon}</div><div class="result-copy"><b>${this.escapeHtml(item.name)}</b><small>${this.escapeHtml(meta)}</small></div><button class="result-save" title="حفظ">${item.kind==='trip'||item.kind==='saved'?'★':'☆'}</button>`;
+      const choose=()=>this.selectSearchResult(item);el.querySelector('.result-copy').addEventListener('click',choose);el.querySelector('.result-icon').addEventListener('click',choose);
+      el.querySelector('.result-save').addEventListener('click',e=>{e.stopPropagation();if(item.kind==='trip'){this.toast('هذه الرحلة محفوظة مسبقاً')}else{this.offlineManager.savePlace({...item,kind:'place'});this.updateSavedCount();e.currentTarget.textContent='★';this.toast('تم حفظ المكان')}});
       box.appendChild(el);
     });
   }
@@ -267,7 +317,26 @@ class WasilAppV2{
   async selectSearchResult(item){
     if(item.kind==='trip'&&item.trip){this.loadSavedTrip(item.trip);return}
     this.selectedDestination={id:item.id,name:item.name,address:item.address,lat:+item.lat,lng:+item.lng};
-    this.closeSearch();await this.buildRoute(this.selectedDestination);
+    this.rememberDestination(this.selectedDestination);
+    this.closeSearch();this.showDestinationPreview(this.selectedDestination);
+  }
+
+  showDestinationPreview(destination){
+    if(!destination)return;
+    this.activeRoute=null;this.routeAlternatives=[];this.routeChoices=[];this.activeRouteIndex=0;
+    document.getElementById('route-sheet').classList.add('hidden');document.getElementById('home-controls').classList.add('hidden');
+    const sheet=document.getElementById('destination-preview');sheet.classList.remove('hidden');sheet.setAttribute('aria-hidden','false');
+    document.getElementById('preview-destination').textContent=destination.name||'الوجهة';
+    document.getElementById('preview-address').textContent=this.shortenAddress(destination.address)||destination.address||'موقع محدد على الخريطة';
+    const d=this.currentPosition?this.haversine(this.currentPosition.lat,this.currentPosition.lng,destination.lat,destination.lng):null;
+    document.getElementById('preview-distance').textContent=d==null?'—':this.formatDistance(d);
+    document.getElementById('btn-preview-save').textContent='☆ حفظ';
+    this.mapEngine.showDestinationPreview(destination,this.currentPosition);
+  }
+
+  hideDestinationPreview(restoreHome=false){
+    const sheet=document.getElementById('destination-preview');sheet.classList.add('hidden');sheet.setAttribute('aria-hidden','true');
+    if(restoreHome){this.mapEngine.clearRoute();this.selectedDestination=null;if(!this.isNavigating)document.getElementById('home-controls').classList.remove('hidden');if(this.currentPosition)this.mapEngine.centerOnUser(16,false)}
   }
 
   async buildRoute(destination){
@@ -280,8 +349,8 @@ class WasilAppV2{
       const {lat,lng}=this.currentPosition;const profile='driving';
       const url=`https://router.project-osrm.org/route/v1/${profile}/${lng},${lat};${destination.lng},${destination.lat}?overview=full&geometries=geojson&steps=true&alternatives=true`;
       const res=await fetch(url);if(!res.ok)throw new Error('route');const data=await res.json();if(data.code!=='Ok'||!data.routes?.length)throw new Error('route');
-      const [main,...alts]=data.routes;this.activeRoute=this.normalizeRoute(main);this.routeAlternatives=alts.map(r=>this.normalizeRoute(r));this.selectedDestination=destination;
-      this.mapEngine.setNavigationMode(false);this.mapEngine.drawRoute(this.activeRoute,this.routeAlternatives);this.renderRouteSheet();
+      this.routeChoices=data.routes.slice(0,3).map(r=>this.normalizeRoute(r));this.activeRouteIndex=0;this.activeRoute=this.routeChoices[0];this.routeAlternatives=this.routeChoices.slice(1);this.selectedDestination=destination;
+      this.hideDestinationPreview(false);this.mapEngine.setNavigationMode(false);this.mapEngine.drawRoute(this.activeRoute,this.routeAlternatives);this.renderRouteSheet();
       if(this.currentMode!=='car'&&this.currentMode!=='taxi')this.toast('ملاحظة: خدمة المسار الحالية تعتمد شبكة طرق السيارات لهذا الإصدار.');
     }catch{this.toast('تعذر إنشاء المسار عبر الإنترنت. تحقق من الشبكة وحاول مجدداً.')}
   }
@@ -291,10 +360,35 @@ class WasilAppV2{
   renderRouteSheet(){
     const sheet=document.getElementById('route-sheet');sheet.classList.remove('hidden');sheet.setAttribute('aria-hidden','false');document.getElementById('home-controls').classList.add('hidden');
     document.getElementById('route-duration').textContent=this.formatDuration(this.activeRoute.duration);document.getElementById('route-distance').textContent=this.formatDistance(this.activeRoute.distance);
-    document.getElementById('route-destination').textContent=this.selectedDestination?.name||'الوجهة';document.getElementById('route-description').textContent=this.offlineManager.isOnline()?'مسار محسوب عبر شبكة الطرق الحالية.':'هذا مسار محفوظ مسبقاً للعمل بدون إنترنت.';
+    const dest=this.selectedDestination?.name||'الوجهة';document.getElementById('route-destination').textContent=dest;document.getElementById('route-destination-header').textContent=dest;
+    document.getElementById('route-origin-name').textContent=document.getElementById('origin-label')?.textContent||'موقعي';
+    document.getElementById('route-description').textContent=this.offlineManager.isOnline()?'اختر المسار المناسب ثم ابدأ الملاحة.':'هذا مسار محفوظ مسبقاً للعمل بدون إنترنت.';
+    this.renderRouteOptions();
   }
 
-  cancelRoute(){this.activeRoute=null;this.selectedDestination=null;this.mapEngine.setNavigationMode(false);this.mapEngine.clearRoute();this.mapEngine.renderTrafficSegments(window.IRAQ_DATA?.trafficSegments||[]);document.getElementById('route-sheet').classList.add('hidden');if(!this.isNavigating)document.getElementById('home-controls').classList.remove('hidden');if(this.currentPosition)this.mapEngine.centerOnUser(16,false)}
+  renderRouteOptions(){
+    const box=document.getElementById('route-options');if(!box)return;box.innerHTML='';
+    const routes=this.routeChoices.length?this.routeChoices:[this.activeRoute].filter(Boolean);const fastest=Math.min(...routes.map(r=>r.duration||Infinity));
+    routes.forEach((r,i)=>{
+      const btn=document.createElement('button');btn.type='button';btn.className=`route-option-card${i===this.activeRouteIndex?' selected':''}`;btn.dataset.routeIndex=String(i);
+      const delay=Math.max(0,(r.duration||0)-fastest);const traffic=delay>=120?`+${Math.round(delay/60)} د وقت إضافي`:'المسار الأسرع المتاح';
+      const via=this.routeViaLabel(r);
+      btn.innerHTML=`<span class="route-option-number">${i+1}</span><span class="route-option-copy"><b>${this.formatDuration(r.duration)}</b><small>${this.escapeHtml(via)}</small><em>${traffic}</em></span><span class="route-option-distance">${this.formatDistance(r.distance)}</span>`;
+      btn.addEventListener('click',()=>this.selectRouteAlternative(i));box.appendChild(btn);
+    });
+  }
+
+  routeViaLabel(route){
+    const names=[];(route?.legs||[]).flatMap(l=>l.steps||[]).forEach(st=>{const n=(st.name||'').trim();if(n&&!names.includes(n))names.push(n)});
+    return names.length?`عبر ${names.slice(0,2).join(' ← ')}`:'المسار المقترح';
+  }
+
+  selectRouteAlternative(index){
+    if(!this.routeChoices[index])return;this.activeRouteIndex=index;this.activeRoute=this.routeChoices[index];this.routeAlternatives=this.routeChoices.filter((_,i)=>i!==index);
+    this.mapEngine.drawRoute(this.activeRoute,this.routeAlternatives);this.renderRouteSheet();
+  }
+
+  cancelRoute(){this.activeRoute=null;this.selectedDestination=null;this.routeAlternatives=[];this.routeChoices=[];this.activeRouteIndex=0;this.mapEngine.setNavigationMode(false);this.mapEngine.clearRoute();this.mapEngine.renderTrafficSegments(window.IRAQ_DATA?.trafficSegments||[]);document.getElementById('route-sheet').classList.add('hidden');document.getElementById('destination-preview')?.classList.add('hidden');if(!this.isNavigating)document.getElementById('home-controls').classList.remove('hidden');if(this.currentPosition)this.mapEngine.centerOnUser(16,false)}
 
   saveCurrentTrip(){
     if(!this.activeRoute||!this.selectedDestination)return;
@@ -305,7 +399,7 @@ class WasilAppV2{
 
   loadSavedTrip(saved){
     if(!saved?.route?.geometry){this.toast('بيانات الرحلة المحفوظة غير مكتملة');return}
-    this.selectedDestination=saved.destination;this.activeRoute=saved.route;this.currentMode=saved.mode||'car';this.currentModeLabel=saved.label||'سيارة';this.closeSearch();this.mapEngine.drawRoute(this.activeRoute,[]);this.mapEngine.setNavigationMode(false);this.renderRouteSheet();this.toast('تم فتح المسار المحفوظ بدون الحاجة لحساب مسار جديد.');
+    this.selectedDestination=saved.destination;this.activeRoute=saved.route;this.routeChoices=[saved.route];this.routeAlternatives=[];this.activeRouteIndex=0;this.currentMode=saved.mode||'car';this.currentModeLabel=saved.label||'سيارة';this.closeSearch();this.hideDestinationPreview(false);this.mapEngine.drawRoute(this.activeRoute,[]);this.mapEngine.setNavigationMode(false);this.renderRouteSheet();this.toast('تم فتح المسار المحفوظ بدون الحاجة لحساب مسار جديد.');
   }
 
   startNavigation(){

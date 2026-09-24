@@ -1,0 +1,3 @@
+Selected map/navigation presentation assets adapted from the user-provided Waze_src.zip.
+Native Android/Godot map engine files are not directly compatible with the WASIL web/Leaflet runtime.
+WASIL 2.9 recreates the search sheet, route alternatives, route line hierarchy, and destination preview in web code.

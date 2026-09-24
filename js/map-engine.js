@@ -13,6 +13,8 @@ class MapEngine {
     this.userMarker = null;
     this.destinationMarker = null;
     this.originMarker = null;
+    this.previewMarker = null;
+    this.routeLabelMarkers = [];
     this.turnMarker = null;
     this.currentUser = null;
 
@@ -337,7 +339,9 @@ class MapEngine {
     this.routeLayer.clearLayers();
     this.destinationMarker = null;
     this.originMarker = null;
+    this.previewMarker = null;
     this.turnMarker = null;
+    this.routeLabelMarkers = [];
     this.currentRoute = null;
     this.currentAlternatives = [];
     this.routePts = [];
@@ -346,98 +350,93 @@ class MapEngine {
     this.progressRemainingInner = null;
   }
 
+  _sourcePinIcon(type = 'destination') {
+    const file = type === 'origin' ? 'departure-pin.png' : 'destination-pin.png';
+    const cls = type === 'origin' ? 'waze-origin-img' : 'waze-destination-img';
+    const size = type === 'origin' ? [42, 50] : [44, 53];
+    return L.divIcon({
+      html: `<div class="waze-source-pin"><img class="${cls}" src="assets/waze-import/${file}?v=2.9.0" alt=""></div>`,
+      className: '', iconSize: size, iconAnchor: [size[0] / 2, size[1] - 4]
+    });
+  }
+
+  showDestinationPreview(destination, origin = null) {
+    this.routeLayer.clearLayers();
+    this.currentRoute = null;this.currentAlternatives = [];this.routePts = [];
+    this.destinationMarker = L.marker([destination.lat, destination.lng], {icon:this._sourcePinIcon('destination'),zIndexOffset:1300}).addTo(this.routeLayer);
+    this.previewMarker = this.destinationMarker;
+    if (origin && Number.isFinite(+origin.lat) && Number.isFinite(+origin.lng)) {
+      const bounds = L.latLngBounds([[origin.lat,origin.lng],[destination.lat,destination.lng]]);
+      if (bounds.isValid()) this.map.fitBounds(bounds,{paddingTopLeft:[36,120],paddingBottomRight:[36,260],maxZoom:16.8,animate:true,duration:.55});
+    } else {
+      this.map.flyTo([destination.lat,destination.lng],16.2,{duration:.5});
+    }
+  }
+
+  _routeMidpoint(pts) {
+    if (!pts?.length) return null;
+    return pts[Math.max(0,Math.min(pts.length-1,Math.floor(pts.length*0.53)))];
+  }
+
+  _addRouteTimeBadge(pts, route, selected = false, order = 0) {
+    if (this.navMode || !pts?.length || !route) return;
+    const p=this._routeMidpoint(pts);if(!p)return;
+    const mins=Math.max(1,Math.round((route.duration||0)/60));
+    const icon=L.divIcon({html:`<div class="route-time-badge ${selected?'selected':''}"><span>${mins} د</span><small>${order+1}</small></div>`,className:'',iconSize:[64,34],iconAnchor:[32,17]});
+    const m=L.marker(p,{icon,zIndexOffset:selected?1250:900,interactive:false}).addTo(this.routeLayer);this.routeLabelMarkers.push(m);
+  }
+
   drawRoute(route, alternatives = []) {
     this.routeLayer.clearLayers();
     this.currentRoute = route;
     this.currentAlternatives = alternatives || [];
-    this.turnMarker = null;
+    this.turnMarker = null;this.routeLabelMarkers=[];this.previewMarker=null;
 
-    alternatives.slice(0, 2).forEach(alt => {
+    const visibleAlternatives=this.navMode?[]:(alternatives||[]).slice(0,2);
+    visibleAlternatives.forEach((alt,idx) => {
       if (!alt.geometry?.coordinates) return;
-      const pts = alt.geometry.coordinates.map(c => [c[1], c[0]]);
-      L.polyline(pts, {
-        color: '#6f7882',
-        weight: this.navMode ? 7 : 7,
-        opacity: 0.42,
-        lineCap: 'round',
-        lineJoin: 'round'
-      }).addTo(this.routeLayer);
+      const altPts = alt.geometry.coordinates.map(c => [c[1], c[0]]);
+      L.polyline(altPts,{color:'#27343d',weight:13,opacity:.58,lineCap:'round',lineJoin:'round'}).addTo(this.routeLayer);
+      L.polyline(altPts,{color:'#7c8790',weight:8,opacity:.82,lineCap:'round',lineJoin:'round'}).addTo(this.routeLayer);
+      this._addRouteTimeBadge(altPts,alt,false,idx+1);
     });
 
     const pts = route.geometry.coordinates.map(c => [c[1], c[0]]);
     this.routePts = pts;
 
+    // Wide shadow/casing inspired by the route hierarchy in the provided source.
     L.polyline(pts, {
-      color: '#092f3a',
-      weight: this.navMode ? 22 : 16,
-      opacity: this.navMode ? 0.72 : 0.17,
-      lineCap: 'round',
-      lineJoin: 'round'
+      color: this.navMode ? '#0b6f82' : '#173c48',
+      weight: this.navMode ? 24 : 20,
+      opacity: this.navMode ? 0.22 : 0.48,
+      lineCap: 'round', lineJoin: 'round'
     }).addTo(this.routeLayer);
 
-    const mainWeight = this.navMode ? 10 : 9;
+    const mainWeight = this.navMode ? 11 : 10;
     let mainLine;
 
     if (this.navMode) {
-      this.progressPassedLine = L.polyline([], {
-        color: '#136a78',
-        weight: mainWeight,
-        opacity: 0.88,
-        lineCap: 'round',
-        lineJoin: 'round'
-      }).addTo(this.routeLayer);
-
-      this.progressRemainingOuter = L.polyline(pts, {
-        color: '#1a6d7d',
-        weight: mainWeight + 4,
-        opacity: 0.92,
-        lineCap: 'round',
-        lineJoin: 'round'
-      }).addTo(this.routeLayer);
-
-      this.progressRemainingInner = L.polyline(pts, {
-        color: '#29d8ee',
-        weight: mainWeight,
-        opacity: 1,
-        lineCap: 'round',
-        lineJoin: 'round'
-      }).addTo(this.routeLayer);
+      this.progressPassedLine = L.polyline([], {color:'#46616a',weight:mainWeight,opacity:.82,lineCap:'round',lineJoin:'round'}).addTo(this.routeLayer);
+      this.progressRemainingOuter = L.polyline(pts, {color:'#ffffff',weight:mainWeight+6,opacity:.98,lineCap:'round',lineJoin:'round'}).addTo(this.routeLayer);
+      this.progressRemainingInner = L.polyline(pts, {color:'#2fc9ea',weight:mainWeight,opacity:1,lineCap:'round',lineJoin:'round'}).addTo(this.routeLayer);
       mainLine = this.progressRemainingInner;
     } else {
-      L.polyline(pts, {
-        color: '#ffffff',
-        weight: mainWeight + 4,
-        opacity: 0.96,
-        lineCap: 'round',
-        lineJoin: 'round'
-      }).addTo(this.routeLayer);
-
-      mainLine = L.polyline(pts, {
-        color: '#27d2f4',
-        weight: mainWeight,
-        opacity: 1,
-        lineCap: 'round',
-        lineJoin: 'round'
-      }).addTo(this.routeLayer);
+      L.polyline(pts, {color:'#ffffff',weight:mainWeight+6,opacity:.96,lineCap:'round',lineJoin:'round'}).addTo(this.routeLayer);
+      mainLine = L.polyline(pts, {color:'#26bfe4',weight:mainWeight,opacity:1,lineCap:'round',lineJoin:'round'}).addTo(this.routeLayer);
+      this._addRouteTimeBadge(pts,route,true,0);
     }
 
     const first = pts[0], last = pts[pts.length - 1];
-    this.originMarker = L.marker(first, {
-      icon: L.divIcon({ html: '<div class="origin-pin"></div>', className: '', iconSize: [24, 24], iconAnchor: [12, 12] })
-    }).addTo(this.routeLayer);
-
-    this.destinationMarker = L.marker(last, {
-      icon: L.divIcon({ html: '<div class="destination-pin"><div class="flag">🏁</div><div class="stem"></div></div>', className: '', iconSize: [42, 48], iconAnchor: [12, 44] })
-    }).addTo(this.routeLayer);
+    this.originMarker = L.marker(first,{icon:this._sourcePinIcon('origin'),zIndexOffset:1150}).addTo(this.routeLayer);
+    this.destinationMarker = L.marker(last,{icon:this._sourcePinIcon('destination'),zIndexOffset:1250}).addTo(this.routeLayer);
 
     this.renderTrafficSegments(this._trafficNearRoute(route));
 
     this.map.fitBounds(mainLine.getBounds(), {
-      paddingTopLeft: this.navMode ? [24, 178] : [35, 115],
-      paddingBottomRight: this.navMode ? [24, 250] : [35, 230],
-      maxZoom: this.navMode ? 18.3 : 17.2,
-      animate: true,
-      duration: 0.65
+      paddingTopLeft: this.navMode ? [24, 185] : [32, 118],
+      paddingBottomRight: this.navMode ? [24, 245] : [32, 315],
+      maxZoom: this.navMode ? 18.3 : 16.9,
+      animate: true, duration: 0.62
     });
   }
 
