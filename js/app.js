@@ -121,7 +121,8 @@ class WasilAppV2{
   applyPosition(pos,first=false){
     const c=pos.coords;this.currentPosition={lat:c.latitude,lng:c.longitude,accuracy:c.accuracy,heading:Number.isFinite(c.heading)?c.heading:null,speed:Number.isFinite(c.speed)?Math.max(0,c.speed*3.6):0,timestamp:pos.timestamp};
     this.mapEngine.updateUserPosition(this.currentPosition,this.isNavigating);
-    if(first){this.mapEngine.centerOnUser(16,false);this.loadMappedRoadHazards();}
+    if(first){this.mapEngine.centerOnUser(16,false);}
+    this.loadMappedRoadHazards();
     if(this.isNavigating){this.updateNavigationFromPosition();}
     document.getElementById('nav-speed').textContent=Math.round(this.currentPosition.speed||0);
     this.checkNearbyHazards();
@@ -129,17 +130,58 @@ class WasilAppV2{
 
   async loadMappedRoadHazards(){
     if(!this.currentPosition||!this.offlineManager.isOnline())return;
-    if(this.lastRoadHazardLoad && this.haversine(this.currentPosition.lat,this.currentPosition.lng,this.lastRoadHazardLoad.lat,this.lastRoadHazardLoad.lng)<7000)return;
+    if(this.lastRoadHazardLoad && this.haversine(this.currentPosition.lat,this.currentPosition.lng,this.lastRoadHazardLoad.lat,this.lastRoadHazardLoad.lng)<6000)return;
     const {lat,lng}=this.currentPosition;this.lastRoadHazardLoad={lat,lng};
+    const q=`[out:json][timeout:18];(
+      node(around:22000,${lat},${lng})[highway=speed_camera];
+      nwr(around:18000,${lat},${lng})[enforcement~"^(maxspeed|traffic_signals|average_speed)$"];
+      nwr(around:14000,${lat},${lng})["camera:type"~"traffic|speed|red_light",i];
+      node(around:10000,${lat},${lng})[traffic_calming];
+    );out center tags 240;`;
+    const endpoints=[
+      'https://overpass-api.de/api/interpreter?data=',
+      'https://overpass.kumi.systems/api/interpreter?data='
+    ];
     try{
-      const q=`[out:json][timeout:12];(node(around:12000,${lat},${lng})[highway=speed_camera];node(around:8000,${lat},${lng})[traffic_calming];);out body 120;`;
-      const res=await fetch('https://overpass-api.de/api/interpreter?data='+encodeURIComponent(q));if(!res.ok)throw new Error('overpass');const data=await res.json();
-      const mapped=(data.elements||[]).map(e=>{
-        const isCam=e.tags?.highway==='speed_camera';const kind=e.tags?.traffic_calming||'';
-        return {id:`osm-${e.id}`,type:isCam?'camera':'bump',title:isCam?'كاميرا سرعة مسجلة على الخريطة':'مهدئ سرعة / مطب مسجل على الخريطة',details:isCam?(e.tags?.maxspeed?`السرعة المسجلة ${e.tags.maxspeed}`:'بيانات OpenStreetMap'):(kind?`النوع: ${kind}`:'بيانات OpenStreetMap'),coords:[e.lat,e.lon],source:'openstreetmap'};
-      });
+      let data=null,lastError=null;
+      for(const endpoint of endpoints){
+        try{
+          const res=await fetch(endpoint+encodeURIComponent(q),{headers:{'Accept':'application/json'}});
+          if(!res.ok)throw new Error(`overpass ${res.status}`);
+          data=await res.json();break;
+        }catch(e){lastError=e;}
+      }
+      if(!data)throw lastError||new Error('overpass unavailable');
+      const seen=new Set();
+      const mapped=[];
+      for(const e of (data.elements||[])){
+        const latv=Number(e.lat??e.center?.lat),lonv=Number(e.lon??e.center?.lon);if(!Number.isFinite(latv)||!Number.isFinite(lonv))continue;
+        const tags=e.tags||{};const enforcement=String(tags.enforcement||'').toLowerCase();const cameraType=String(tags['camera:type']||'').toLowerCase();const calming=tags.traffic_calming;
+        const isCam=tags.highway==='speed_camera'||!!enforcement||/traffic|speed|red_light/.test(cameraType);
+        const kind=!isCam?'bump':enforcement==='traffic_signals'||/red.?light/.test(cameraType)?'red_light':enforcement==='average_speed'?'average_speed':/traffic/.test(cameraType)?'traffic':'speed';
+        const key=`${e.type}-${e.id}-${isCam?'cam':'bump'}`;if(seen.has(key))continue;seen.add(key);
+        let title,details,speedLimit=null;
+        if(isCam){
+          if(kind==='red_light')title='كاميرا إشارة ضوئية';
+          else if(kind==='average_speed')title='قياس سرعة متوسطة';
+          else if(kind==='traffic')title='كاميرا مراقبة مرورية';
+          else title='كاميرا سرعة';
+          speedLimit=tags.maxspeed||tags['maxspeed:forward']||tags['maxspeed:backward']||null;
+          const bits=[];if(speedLimit)bits.push(`السرعة ${speedLimit}`);if(tags.direction)bits.push(`الاتجاه ${tags.direction}`);if(tags.ref)bits.push(`رقم ${tags.ref}`);bits.push('مسجلة على OpenStreetMap');details=bits.join(' · ');
+        }else{
+          title='مهدئ سرعة / مطب';details=calming?`النوع: ${calming} · OpenStreetMap`:'مسجل على OpenStreetMap';
+        }
+        mapped.push({id:`osm-${e.type}-${e.id}`,type:isCam?'camera':'bump',cameraKind:kind,title,details,coords:[latv,lonv],source:'openstreetmap',speedLimit});
+      }
       this.hazardsManager.setNetworkHazards(mapped);
-    }catch(e){console.warn('Road hazards unavailable',e)}
+      this.updateRoadDataStats(mapped);
+    }catch(e){console.warn('Road hazards unavailable',e);this.updateRoadDataStats([],'غير متاح')}
+  }
+
+  updateRoadDataStats(list=[],label=''){
+    const cams=(list||[]).filter(x=>x.type==='camera').length;
+    const el=document.getElementById('camera-count');if(el)el.textContent=String(cams);
+    const wrap=document.getElementById('camera-count-wrap');if(wrap)wrap.title=label||`${cams} كاميرا/نقطة رقابة مسجلة قربك`;
   }
 
   async reverseGeocodeOrigin(){

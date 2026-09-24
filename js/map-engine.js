@@ -3,7 +3,7 @@ class MapEngine {
     this.containerId = containerId;
     this.map = null;
     this.baseLayer = null;
-    this.theme = 'night';
+    this.theme = localStorage.getItem('wasil_map_theme') || 'day';
 
     this.routeLayer = L.layerGroup();
     this.hazardLayer = L.layerGroup();
@@ -55,7 +55,7 @@ class MapEngine {
     this.districtLayer.addTo(this.map);
 
     this.map.on('zoomend moveend', () => this._refreshDistrictVisibility());
-    this.setTheme('night');
+    this.setTheme(this.theme);
     this.renderDistrictLabels(window.IRAQ_DATA?.baghdadDistricts || []);
     this.renderTrafficSegments(window.IRAQ_DATA?.trafficSegments || []);
     return this.map;
@@ -81,7 +81,7 @@ class MapEngine {
 
       const gl = this.baseLayer.getMaplibreMap();
       gl.once('load', () => {
-        this._hideBaseLabels(gl);
+        this._styleBaseLabels(gl);
         this._restyleBaseFeatures(gl);
       });
       gl.on('error', e => {
@@ -100,19 +100,43 @@ class MapEngine {
       }).addTo(this.map);
     }
     document.body.dataset.theme = theme;
+    try { localStorage.setItem('wasil_map_theme', theme); } catch {}
   }
 
-  _hideBaseLabels(gl) {
+  _styleBaseLabels(gl) {
     try {
       const style = gl.getStyle();
       if (!style?.layers) return;
+      const night = this.theme === 'night';
+      const labelColor = night ? '#d8e4e8' : '#596168';
+      const strongColor = night ? '#eef5f7' : '#39434a';
+      const waterColor = night ? '#8cc7ff' : '#155f9d';
+      const greenColor = night ? '#8ed0a8' : '#1f7e49';
+      const haloColor = night ? '#15202d' : '#ffffff';
+
       style.layers.forEach(layer => {
-        if (layer?.layout?.['text-field'] !== undefined) {
-          try { gl.setLayoutProperty(layer.id, 'text-field', ''); } catch (_e) {}
+        const id = String(layer.id || '').toLowerCase();
+        const hasText = layer?.layout?.['text-field'] !== undefined;
+        if (!hasText) return;
+
+        // Keep useful road/place/water labels, remove noisy POIs and building numbers.
+        const useful = /(place|settlement|city|town|village|suburb|neigh|district|locality|road|street|transport|motorway|trunk|primary|secondary|water|river|lake|sea|canal)/.test(id);
+        const noisy = /(poi|amenity|shop|housenumber|building-number|transit-stop|bus-stop|railway-station|airport-label)/.test(id);
+        if (noisy && !useful) {
+          try { gl.setLayoutProperty(layer.id, 'visibility', 'none'); } catch (_e) {}
+          return;
         }
+
+        try { gl.setPaintProperty(layer.id, 'text-halo-color', haloColor); } catch (_e) {}
+        try { gl.setPaintProperty(layer.id, 'text-halo-width', /(road|street|transport)/.test(id) ? 1.5 : 2); } catch (_e) {}
+        try { gl.setPaintProperty(layer.id, 'text-halo-blur', 0.35); } catch (_e) {}
+        try {
+          const c = /(water|river|lake|sea|canal)/.test(id) ? waterColor : /(park|green|forest|wood)/.test(id) ? greenColor : /(place|city|town|district|suburb)/.test(id) ? strongColor : labelColor;
+          gl.setPaintProperty(layer.id, 'text-color', c);
+        } catch (_e) {}
       });
     } catch (e) {
-      console.warn('تعذر إخفاء بعض تسميات الخريطة', e);
+      console.warn('تعذر ترتيب تسميات الخريطة', e);
     }
   }
 
@@ -120,6 +144,16 @@ class MapEngine {
     try {
       const style = gl.getStyle();
       if (!style?.layers) return;
+      const night = this.theme === 'night';
+      const palette = night ? {
+        background: '#272e3a', city: '#2b3a4d', building: '#313f50',
+        water: '#24467a', waterLine: '#315a8c', park: '#256950', parkLine: '#2f8b68',
+        motorway: '#799aba', primary: '#54718c', secondary: '#3f5871', street: '#3f5871', rail: '#455b70'
+      } : {
+        background: '#fafcfa', city: '#f9f8f4', building: '#eef0ef',
+        water: '#1d4e89', waterLine: '#2d69a7', park: '#bef2c9', parkLine: '#8fd7a4',
+        motorway: '#8d949b', primary: '#a6adb3', secondary: '#c6cbcf', street: '#d2d7db', rail: '#d2cecc'
+      };
       const setPaint = (id, prop, value) => {
         try {
           const existing = gl.getPaintProperty(id, prop);
@@ -129,19 +163,30 @@ class MapEngine {
 
       style.layers.forEach(layer => {
         const id = String(layer.id || '').toLowerCase();
+        if (layer.type === 'background') setPaint(layer.id, 'background-color', palette.background);
+
         if (/(water|river|lake|canal|reservoir|stream|sea)/.test(id)) {
-          if (layer.type === 'fill') setPaint(layer.id, 'fill-color', '#173f79');
-          if (layer.type === 'line') setPaint(layer.id, 'line-color', '#245b9b');
-          if (layer.type === 'fill') setPaint(layer.id, 'fill-opacity', 0.96);
+          if (layer.type === 'fill') { setPaint(layer.id, 'fill-color', palette.water); setPaint(layer.id, 'fill-opacity', night ? 0.95 : 0.93); }
+          if (layer.type === 'line') setPaint(layer.id, 'line-color', palette.waterLine);
         }
         if (/(park|garden|grass|green|forest|wood|nature|pitch)/.test(id)) {
-          if (layer.type === 'fill') setPaint(layer.id, 'fill-color', '#20784e');
-          if (layer.type === 'line') setPaint(layer.id, 'line-color', '#2ca66b');
-          if (layer.type === 'fill') setPaint(layer.id, 'fill-opacity', 0.9);
+          if (layer.type === 'fill') { setPaint(layer.id, 'fill-color', palette.park); setPaint(layer.id, 'fill-opacity', night ? 0.86 : 0.92); }
+          if (layer.type === 'line') setPaint(layer.id, 'line-color', palette.parkLine);
+        }
+        if (/(landcover|landuse|residential|city|urban)/.test(id) && layer.type === 'fill' && !/(park|green|water)/.test(id)) {
+          setPaint(layer.id, 'fill-color', palette.city);
+        }
+        if (/building/.test(id) && layer.type === 'fill') setPaint(layer.id, 'fill-color', palette.building);
+        if (layer.type === 'line') {
+          if (/(motorway|freeway|trunk)/.test(id)) setPaint(layer.id, 'line-color', palette.motorway);
+          else if (/primary/.test(id)) setPaint(layer.id, 'line-color', palette.primary);
+          else if (/(secondary|tertiary)/.test(id)) setPaint(layer.id, 'line-color', palette.secondary);
+          else if (/(street|residential|minor|service|road)/.test(id)) setPaint(layer.id, 'line-color', palette.street);
+          else if (/rail/.test(id)) setPaint(layer.id, 'line-color', palette.rail);
         }
       });
     } catch (e) {
-      console.warn('تعذر ضبط ألوان الطبيعة والمياه', e);
+      console.warn('تعذر ضبط شكل الخريطة', e);
     }
   }
 
@@ -469,14 +514,22 @@ class MapEngine {
     const emoji = { camera: '📷', accident: '💥', bump: '⚠️', traffic: '🚦', checkpoint: '🛡️' };
     hazards.forEach(h => {
       if (!Array.isArray(h.coords)) return;
+      let glyph = emoji[h.type] || '!';
+      if (h.type === 'camera') {
+        if (h.cameraKind === 'red_light') glyph = '🚦';
+        else if (h.cameraKind === 'average_speed') glyph = '⏱';
+        else if (h.cameraKind === 'traffic') glyph = '🎥';
+      }
+      const limit = h.type === 'camera' && h.speedLimit ? `<span class="camera-speed-badge">${String(h.speedLimit).replace(/[^0-9]/g,'')}</span>` : '';
       const icon = L.divIcon({
-        html: `<div class="hazard-marker hazard-${h.type}">${emoji[h.type] || '!'}</div>`,
+        html: `<div class="hazard-marker hazard-${h.type} hazard-kind-${h.cameraKind || 'default'}"><span class="hazard-glyph">${glyph}</span>${limit}</div>`,
         className: '',
-        iconSize: [34, 34],
-        iconAnchor: [17, 17]
+        iconSize: [40, 40],
+        iconAnchor: [20, 20]
       });
-      const m = L.marker(h.coords, { icon }).addTo(this.hazardLayer);
-      m.bindPopup(`<div class="hazard-popup"><b>${h.title || 'تنبيه طريق'}</b><small>${h.details || ''}</small></div>`);
+      const m = L.marker(h.coords, { icon, zIndexOffset: h.type === 'camera' ? 520 : 420 }).addTo(this.hazardLayer);
+      const source = h.source === 'openstreetmap' ? '<small class="hazard-source">المصدر: OpenStreetMap</small>' : '';
+      m.bindPopup(`<div class="hazard-popup"><b>${h.title || 'تنبيه طريق'}</b><small>${h.details || ''}</small>${source}</div>`);
     });
   }
 

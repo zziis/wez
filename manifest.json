@@ -5,8 +5,8 @@
   "scope":"./",
   "display":"standalone",
   "orientation":"portrait",
-  "background_color":"#1d1f23",
-  "theme_color":"#1d1f23",
+  "background_color":"#fafcfa",
+  "theme_color":"#272e3a",
   "lang":"ar",
   "dir":"rtl",
   "icons":[{"src":"assets/images/logo.jpg","sizes":"512x512","type":"image/jpeg","purpose":"any maskable"}]

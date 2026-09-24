@@ -4,7 +4,7 @@
 
 const IRAQ_DATA = {
     appName: "وصل - خرائط العراق الذكية",
-    version: "2026.4.1",
+    version: "2026.9.24",
     center: [33.3152, 44.3661], // بغداد
     defaultZoom: 13,
 
