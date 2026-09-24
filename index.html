@@ -6,24 +6,24 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <meta name="wasil-version" content="2.3.0">
+  <meta name="wasil-version" content="2.6.0">
   <meta name="theme-color" content="#1f2227">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>وصل | خرائط العراق</title>
-  <link rel="manifest" href="manifest.json?v=2.3.0">
-  <link rel="icon" href="assets/images/logo.jpg?v=2.3.0">
+  <link rel="manifest" href="manifest.json?v=2.6.0">
+  <link rel="icon" href="assets/images/logo.jpg?v=2.6.0">
   <link rel="preconnect" href="https://tiles.openfreemap.org">
   <link rel="preconnect" href="https://unpkg.com">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.23.0/dist/maplibre-gl.css">
-  <link rel="stylesheet" href="css/style.css?v=2.3.0">
-  <link rel="stylesheet" href="css/responsive.css?v=2.3.0">
+  <link rel="stylesheet" href="css/style.css?v=2.6.0">
+  <link rel="stylesheet" href="css/responsive.css?v=2.6.0">
 
   <script>
   (function(){
-    const VERSION='2.3.0';
+    const VERSION='2.6.0';
     const KEY='wasil_boot_version';
     if(location.protocol==='file:') return;
     if(localStorage.getItem(KEY)===VERSION) return;
@@ -42,7 +42,7 @@
 <body>
   <div id="splash-screen" class="splash-screen">
     <div class="splash-card">
-      <img src="assets/images/logo.jpg?v=2.3.0" alt="وصل" class="splash-logo">
+      <img src="assets/images/logo.jpg?v=2.6.0" alt="وصل" class="splash-logo">
       <div class="splash-name">وَصِل</div>
       <div class="splash-sub">طريقك أوضح</div>
       <div class="splash-loader"><span></span></div>
@@ -141,7 +141,8 @@
 
       <div class="nav-floating-actions">
         <button id="btn-nav-search" class="round-action dark">⌕</button>
-        <button id="btn-nav-overview" class="round-action dark">◎</button>
+        <button id="btn-nav-overview" class="round-action dark" title="نظرة عامة">◎</button>
+        <button id="btn-nav-orientation" class="round-action dark nav-orientation active" title="اتجاه السير للأعلى">🧭</button>
       </div>
 
       <div class="nav-bottom-card">
@@ -168,7 +169,7 @@
     <div id="menu-backdrop" class="backdrop hidden"></div>
     <aside id="side-menu" class="side-menu hidden">
       <div class="menu-head">
-        <img src="assets/images/logo.jpg?v=2.3.0" alt="وصل">
+        <img src="assets/images/logo.jpg?v=2.6.0" alt="وصل">
         <div><h3>وَصِل</h3><small>خرائط العراق</small></div>
         <button id="btn-close-menu">×</button>
       </div>
@@ -190,6 +191,13 @@
         <button data-mode="bicycle" data-label="دراجة">🚲<span>دراجة</span></button>
         <button data-mode="escooter" data-label="سكوتر">🛴<span>سكوتر</span></button>
       </div>
+      <h4 class="sheet-subtitle">شكل مؤشر الملاحة</h4>
+      <div class="marker-style-grid">
+        <button data-marker-shape="triangle">▲<span>مثلث</span></button>
+        <button data-marker-shape="car">🚗<span>سيارة</span></button>
+        <button data-marker-shape="bicycle">🚲<span>دراجة</span></button>
+        <button data-marker-shape="arrow">➜<span>سهم</span></button>
+      </div>
     </section>
 
     <div id="report-backdrop" class="backdrop hidden"></div>
@@ -210,11 +218,11 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="https://unpkg.com/maplibre-gl@5.23.0/dist/maplibre-gl.js"></script>
   <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js"></script>
-  <script src="js/iraq-data.js?v=2.3.0"></script>
-  <script src="js/voice-assistant.js?v=2.3.0"></script>
-  <script src="js/hazards-manager.js?v=2.3.0"></script>
-  <script src="js/offline-manager.js?v=2.3.0"></script>
-  <script src="js/map-engine.js?v=2.3.0"></script>
-  <script src="js/app.js?v=2.3.0"></script>
+  <script src="js/iraq-data.js?v=2.6.0"></script>
+  <script src="js/voice-assistant.js?v=2.6.0"></script>
+  <script src="js/hazards-manager.js?v=2.6.0"></script>
+  <script src="js/offline-manager.js?v=2.6.0"></script>
+  <script src="js/map-engine.js?v=2.6.0"></script>
+  <script src="js/app.js?v=2.6.0"></script>
 </body>
 </html>

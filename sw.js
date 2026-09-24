@@ -1,13 +1,13 @@
-const VERSION='2.3.0';
+const VERSION='2.6.0';
 const STATIC_CACHE=`wasil-static-${VERSION}`;
 const MAP_CACHE=`wasil-map-${VERSION}`;
 const STATIC_FILES=[
-  './','./index.html','./manifest.json?v=2.3.0',
-  './css/style.css?v=2.3.0','./css/responsive.css?v=2.3.0',
-  './js/iraq-data.js?v=2.3.0','./js/voice-assistant.js?v=2.3.0',
-  './js/hazards-manager.js?v=2.3.0','./js/offline-manager.js?v=2.3.0',
-  './js/map-engine.js?v=2.3.0','./js/app.js?v=2.3.0',
-  './assets/images/logo.jpg?v=2.3.0','./assets/images/splash.jpg'
+  './','./index.html','./manifest.json?v=2.6.0',
+  './css/style.css?v=2.6.0','./css/responsive.css?v=2.6.0',
+  './js/iraq-data.js?v=2.6.0','./js/voice-assistant.js?v=2.6.0',
+  './js/hazards-manager.js?v=2.6.0','./js/offline-manager.js?v=2.6.0',
+  './js/map-engine.js?v=2.6.0','./js/app.js?v=2.6.0',
+  './assets/images/logo.jpg?v=2.6.0','./assets/images/splash.jpg'
 ];
 self.addEventListener('install',e=>{
   e.waitUntil(caches.open(STATIC_CACHE).then(c=>c.addAll(STATIC_FILES)).catch(()=>{}));

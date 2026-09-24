@@ -497,6 +497,65 @@ const IRAQ_DATA = {
         }
     ],
 
+
+    baghdadDistricts: [
+        { name: "حميدية", coords: [33.3908, 44.5345], priority: true },
+        { name: "حي طارق", coords: [33.3815, 44.5488], priority: true },
+        { name: "الشعب", coords: [33.3952, 44.4976], priority: true },
+        { name: "سبع قصور", coords: [33.3878, 44.5178], priority: true },
+        { name: "مدينة الصدر", coords: [33.3591, 44.5005], priority: false },
+        { name: "جميلة", coords: [33.3711, 44.5284], priority: false },
+        { name: "بغداد الجديدة", coords: [33.3099, 44.4701], priority: false },
+        { name: "الأمين", coords: [33.3198, 44.5095], priority: false },
+        { name: "الرشاد", coords: [33.3205, 44.5667], priority: false },
+        { name: "البلديات", coords: [33.3362, 44.5338], priority: false },
+        { name: "الكمالية", coords: [33.3055, 44.5792], priority: false },
+        { name: "حي أور", coords: [33.4020, 44.4650], priority: false },
+        { name: "الطالبية", coords: [33.3780, 44.4710], priority: false },
+        { name: "حي البنوك", coords: [33.4070, 44.4490], priority: false },
+        { name: "القاهرة", coords: [33.3860, 44.4370], priority: false },
+        { name: "الحبيبية", coords: [33.3490, 44.5250], priority: false },
+        { name: "العبيدي", coords: [33.3290, 44.5750], priority: false },
+        { name: "المعامل", coords: [33.3140, 44.6190], priority: false },
+        { name: "الحسينية", coords: [33.4440, 44.5520], priority: false },
+        { name: "زيونة", coords: [33.3230, 44.4650], priority: false },
+        { name: "الغدير", coords: [33.2970, 44.4760], priority: false },
+        { name: "الكرادة", coords: [33.3020, 44.4290], priority: false },
+        { name: "الجادرية", coords: [33.2760, 44.3810], priority: false },
+        { name: "الدورة", coords: [33.2470, 44.3920], priority: false },
+        { name: "المنصور", coords: [33.3150, 44.3600], priority: false },
+        { name: "العامرية", coords: [33.2980, 44.2980], priority: false },
+        { name: "الغزالية", coords: [33.3370, 44.2880], priority: false },
+        { name: "الشعلة", coords: [33.3900, 44.3190], priority: false }
+    ],
+
+    trafficSegments: [
+        {
+            id: "bagh-trf-1",
+            title: "ازدحام عالي - شارع صفي الدين الحلي",
+            severity: "heavy",
+            coords: [[33.3679,44.4868],[33.3698,44.4979],[33.3728,44.5088],[33.3768,44.5194]]
+        },
+        {
+            id: "bagh-trf-2",
+            title: "ازدحام خفيف - مداخل سبع قصور",
+            severity: "light",
+            coords: [[33.3820,44.5188],[33.3852,44.5232],[33.3889,44.5284]]
+        },
+        {
+            id: "bagh-trf-3",
+            title: "ازدحام عالي - حي طارق باتجاه الرشاد",
+            severity: "heavy",
+            coords: [[33.3768,44.5447],[33.3809,44.5538],[33.3850,44.5637]]
+        },
+        {
+            id: "bagh-trf-4",
+            title: "ازدحام خفيف - حميدية",
+            severity: "light",
+            coords: [[33.3896,44.5299],[33.3938,44.5365],[33.3976,44.5417]]
+        }
+    ],
+
     // مسارات تجريبية واقعية للمحاكاة والملاحة الحية
     demoRoutes: {
         mansour_to_jadiriya: {

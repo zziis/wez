@@ -3,7 +3,7 @@ class WasilAppV2{
     this.mapEngine=null;this.offlineManager=null;this.voiceAssistant=null;this.hazardsManager=null;
     this.currentPosition=null;this.watchId=null;this.selectedDestination=null;this.activeRoute=null;this.routeAlternatives=[];
     this.isNavigating=false;this.currentStepIndex=1;this.routeSteps=[];this.routeMetrics=null;this.alertedHazards=new Set();
-    this.currentMode='car';this.currentModeLabel='سيارة';this.selectedHazardType='camera';this.toastTimer=null;this.safetyTimer=null;this.lastRoadHazardLoad=null;
+    this.currentMode='car';this.currentModeLabel='سيارة';this.selectedHazardType='camera';this.selectedMarkerShape=localStorage.getItem('wasil_marker_shape')||'triangle';this.toastTimer=null;this.safetyTimer=null;this.lastRoadHazardLoad=null;
   }
 
   async init(){
@@ -12,7 +12,10 @@ class WasilAppV2{
     this.hazardsManager=new HazardsManager();
     this.mapEngine=new MapEngine('map-container');
     this.mapEngine.init();
+    this.mapEngine.setMarkerShape(this.selectedMarkerShape);
     this.mapEngine.renderHazards(this.hazardsManager.getFilteredHazards());
+    this.mapEngine.renderTrafficSegments(window.IRAQ_DATA?.trafficSegments||[]);
+    this.mapEngine.renderDistrictLabels(window.IRAQ_DATA?.baghdadDistricts||[]);
     this.setupEvents();
     this.offlineManager.subscribe(online=>this.updateNetworkUI(online));
     this.hazardsManager.subscribe(()=>this.mapEngine.renderHazards(this.hazardsManager.getFilteredHazards()));
@@ -28,7 +31,7 @@ class WasilAppV2{
     const $=id=>document.getElementById(id);
     $('btn-enable-location').addEventListener('click',()=>this.requestLocation());
     $('btn-location-retry').addEventListener('click',()=>this.requestLocation());
-    $('btn-recenter').addEventListener('click',()=>this.currentPosition?this.mapEngine.centerOnUser(this.isNavigating?17:16):this.requestLocation());
+    $('btn-recenter').addEventListener('click',()=>this.currentPosition?this.mapEngine.centerOnUser(this.isNavigating?18.25:16,this.isNavigating):this.requestLocation());
     $('search-launch').addEventListener('click',()=>this.openSearch());
     $('btn-close-search').addEventListener('click',()=>this.closeSearch());
     $('btn-search-submit').addEventListener('click',()=>this.performSearch($('search-input').value));
@@ -41,6 +44,7 @@ class WasilAppV2{
 
     $('btn-route-overview').addEventListener('click',()=>this.mapEngine.routeOverview());
     $('btn-nav-overview').addEventListener('click',()=>this.mapEngine.routeOverview());
+    $('btn-nav-orientation')?.addEventListener('click',()=>{const enabled=this.mapEngine.setHeadingUp(!this.mapEngine.headingUp);this.updateOrientationButton();this.toast(enabled?'اتجاه السير أصبح للأعلى':'تم تثبيت الشمال للأعلى')});
     $('btn-cancel-route').addEventListener('click',()=>this.cancelRoute());
     $('btn-start-nav').addEventListener('click',()=>this.startNavigation());
     $('btn-stop-nav').addEventListener('click',()=>this.stopNavigation());
@@ -60,6 +64,17 @@ class WasilAppV2{
       this.currentMode=btn.dataset.mode;this.currentModeLabel=btn.dataset.label;$('vehicle-pill').innerHTML=`${this.modeEmoji(this.currentMode)} <span>${this.currentModeLabel}</span> <span class="chev">⌄</span>`;this.toggleVehicleSheet(false);
       if(this.activeRoute&&this.selectedDestination&&this.offlineManager.isOnline())this.buildRoute(this.selectedDestination);
     }));
+
+    document.querySelectorAll('#vehicle-sheet [data-marker-shape]').forEach(btn=>{
+      if(btn.dataset.markerShape===this.selectedMarkerShape)btn.classList.add('selected');
+      btn.addEventListener('click',()=>{
+        document.querySelectorAll('#vehicle-sheet [data-marker-shape]').forEach(b=>b.classList.remove('selected'));
+        btn.classList.add('selected');
+        this.selectedMarkerShape=btn.dataset.markerShape;
+        this.mapEngine.setMarkerShape(this.selectedMarkerShape);
+        this.toast('تم تغيير شكل مؤشر الملاحة');
+      });
+    });
 
     $('btn-report').addEventListener('click',()=>this.toggleReportSheet(true));
     $('report-backdrop').addEventListener('click',()=>this.toggleReportSheet(false));
@@ -104,10 +119,10 @@ class WasilAppV2{
   }
 
   applyPosition(pos,first=false){
-    const c=pos.coords;this.currentPosition={lat:c.latitude,lng:c.longitude,accuracy:c.accuracy,heading:Number.isFinite(c.heading)?c.heading:0,speed:Number.isFinite(c.speed)?Math.max(0,c.speed*3.6):0,timestamp:pos.timestamp};
+    const c=pos.coords;this.currentPosition={lat:c.latitude,lng:c.longitude,accuracy:c.accuracy,heading:Number.isFinite(c.heading)?c.heading:null,speed:Number.isFinite(c.speed)?Math.max(0,c.speed*3.6):0,timestamp:pos.timestamp};
     this.mapEngine.updateUserPosition(this.currentPosition,this.isNavigating);
-    if(first){this.mapEngine.centerOnUser(16);this.loadMappedRoadHazards();}
-    if(this.isNavigating){this.mapEngine.followUser(this.currentPosition);this.updateNavigationFromPosition();}
+    if(first){this.mapEngine.centerOnUser(16,false);this.loadMappedRoadHazards();}
+    if(this.isNavigating){this.updateNavigationFromPosition();}
     document.getElementById('nav-speed').textContent=Math.round(this.currentPosition.speed||0);
     this.checkNearbyHazards();
   }
@@ -183,7 +198,9 @@ class WasilAppV2{
     (IRAQ_DATA.governorates||[]).forEach(g=>{
       if((g.name||'').toLowerCase().includes(s)||(g.nameEn||'').toLowerCase().includes(s))out.push({id:`gov-${g.id}`,name:g.name,address:`محافظة ${g.name}`,lat:g.center[0],lng:g.center[1],kind:'place'});
       (g.keyPlaces||[]).forEach((p,i)=>{if((p.name||'').toLowerCase().includes(s))out.push({id:`local-${g.id}-${i}`,name:p.name,address:g.name,lat:p.coords[0],lng:p.coords[1],kind:'place'})})
-    });return out.slice(0,10);
+    });
+    (IRAQ_DATA.baghdadDistricts||[]).forEach((d,i)=>{if((d.name||'').toLowerCase().includes(s))out.push({id:`district-${i}`,name:d.name,address:'بغداد',lat:d.coords[0],lng:d.coords[1],kind:'place'})});
+    return out.slice(0,10);
   }
 
   renderSearchResults(items){
@@ -219,7 +236,7 @@ class WasilAppV2{
       const url=`https://router.project-osrm.org/route/v1/${profile}/${lng},${lat};${destination.lng},${destination.lat}?overview=full&geometries=geojson&steps=true&alternatives=true`;
       const res=await fetch(url);if(!res.ok)throw new Error('route');const data=await res.json();if(data.code!=='Ok'||!data.routes?.length)throw new Error('route');
       const [main,...alts]=data.routes;this.activeRoute=this.normalizeRoute(main);this.routeAlternatives=alts.map(r=>this.normalizeRoute(r));this.selectedDestination=destination;
-      this.mapEngine.drawRoute(this.activeRoute,this.routeAlternatives);this.renderRouteSheet();
+      this.mapEngine.setNavigationMode(false);this.mapEngine.drawRoute(this.activeRoute,this.routeAlternatives);this.renderRouteSheet();
       if(this.currentMode!=='car'&&this.currentMode!=='taxi')this.toast('ملاحظة: خدمة المسار الحالية تعتمد شبكة طرق السيارات لهذا الإصدار.');
     }catch{this.toast('تعذر إنشاء المسار عبر الإنترنت. تحقق من الشبكة وحاول مجدداً.')}
   }
@@ -232,7 +249,7 @@ class WasilAppV2{
     document.getElementById('route-destination').textContent=this.selectedDestination?.name||'الوجهة';document.getElementById('route-description').textContent=this.offlineManager.isOnline()?'مسار محسوب عبر شبكة الطرق الحالية.':'هذا مسار محفوظ مسبقاً للعمل بدون إنترنت.';
   }
 
-  cancelRoute(){this.activeRoute=null;this.selectedDestination=null;this.mapEngine.clearRoute();document.getElementById('route-sheet').classList.add('hidden');if(!this.isNavigating)document.getElementById('home-controls').classList.remove('hidden');if(this.currentPosition)this.mapEngine.centerOnUser(16)}
+  cancelRoute(){this.activeRoute=null;this.selectedDestination=null;this.mapEngine.setNavigationMode(false);this.mapEngine.clearRoute();this.mapEngine.renderTrafficSegments(window.IRAQ_DATA?.trafficSegments||[]);document.getElementById('route-sheet').classList.add('hidden');if(!this.isNavigating)document.getElementById('home-controls').classList.remove('hidden');if(this.currentPosition)this.mapEngine.centerOnUser(16,false)}
 
   saveCurrentTrip(){
     if(!this.activeRoute||!this.selectedDestination)return;
@@ -243,19 +260,19 @@ class WasilAppV2{
 
   loadSavedTrip(saved){
     if(!saved?.route?.geometry){this.toast('بيانات الرحلة المحفوظة غير مكتملة');return}
-    this.selectedDestination=saved.destination;this.activeRoute=saved.route;this.currentMode=saved.mode||'car';this.currentModeLabel=saved.label||'سيارة';this.closeSearch();this.mapEngine.drawRoute(this.activeRoute,[]);this.renderRouteSheet();this.toast('تم فتح المسار المحفوظ بدون الحاجة لحساب مسار جديد.');
+    this.selectedDestination=saved.destination;this.activeRoute=saved.route;this.currentMode=saved.mode||'car';this.currentModeLabel=saved.label||'سيارة';this.closeSearch();this.mapEngine.drawRoute(this.activeRoute,[]);this.mapEngine.setNavigationMode(false);this.renderRouteSheet();this.toast('تم فتح المسار المحفوظ بدون الحاجة لحساب مسار جديد.');
   }
 
   startNavigation(){
     if(!this.activeRoute||!this.currentPosition)return;
     this.isNavigating=true;this.alertedHazards.clear();this.routeSteps=(this.activeRoute.legs||[]).flatMap(l=>l.steps||[]);this.currentStepIndex=this.routeSteps.length>1?1:0;this.prepareRouteMetrics();
     document.getElementById('route-sheet').classList.add('hidden');document.getElementById('home-controls').classList.add('hidden');document.getElementById('navigation-ui').classList.remove('hidden');document.getElementById('navigation-ui').setAttribute('aria-hidden','false');
-    this.mapEngine.updateUserPosition(this.currentPosition,true);this.mapEngine.centerOnUser(17);this.updateNavigationFromPosition(true);
+    this.mapEngine.setNavigationMode(true);this.updateOrientationButton();this.mapEngine.updateUserPosition(this.currentPosition,true);this.mapEngine.centerOnUser(18.35,true);this.updateNavigationFromPosition(true);
     const text=this.getCurrentInstruction();this.voiceAssistant.speak(`بدأت الملاحة. ${text}`,true);
   }
 
   stopNavigation(){
-    this.isNavigating=false;document.getElementById('navigation-ui').classList.add('hidden');document.getElementById('navigation-ui').setAttribute('aria-hidden','true');this.mapEngine.updateUserPosition(this.currentPosition,false);this.cancelRoute();this.voiceAssistant.speak('تم إنهاء الملاحة.');
+    this.isNavigating=false;document.getElementById('navigation-ui').classList.add('hidden');document.getElementById('navigation-ui').setAttribute('aria-hidden','true');this.mapEngine.setNavigationMode(false);this.mapEngine.updateUserPosition(this.currentPosition,false);this.cancelRoute();this.voiceAssistant.speak('تم إنهاء الملاحة.');
   }
 
   prepareRouteMetrics(){
@@ -264,18 +281,55 @@ class WasilAppV2{
 
   updateNavigationFromPosition(forceSpeak=false){
     if(!this.isNavigating||!this.currentPosition||!this.activeRoute)return;
-    const steps=this.routeSteps;
+    const steps=this.routeSteps;let nextDistance=0,current=null;
     if(steps.length){
       const step=steps[Math.min(this.currentStepIndex,steps.length-1)];const loc=step?.maneuver?.location;
-      if(loc){const d=this.haversine(this.currentPosition.lat,this.currentPosition.lng,loc[1],loc[0]);
+      if(loc){const d=this.haversine(this.currentPosition.lat,this.currentPosition.lng,loc[1],loc[0]);nextDistance=d;
         if(d<38&&this.currentStepIndex<steps.length-1){this.currentStepIndex++;const nextText=this.getCurrentInstruction();this.voiceAssistant.speak(nextText,true)}
         document.getElementById('nav-next-distance').textContent=this.formatMeters(d);
       }
-      const current=steps[Math.min(this.currentStepIndex,steps.length-1)];document.getElementById('nav-instruction-text').textContent=this.translateStep(current);document.getElementById('nav-arrow').textContent=this.stepArrow(current);
+      current=steps[Math.min(this.currentStepIndex,steps.length-1)];document.getElementById('nav-instruction-text').textContent=this.translateStep(current);document.getElementById('nav-arrow').textContent=this.stepArrow(current);
       if(forceSpeak&&current)this.voiceAssistant.speak(this.translateStep(current),true);
     }
-    const progress=this.getRouteProgress();document.getElementById('nav-distance-left').textContent=this.formatDistance(progress.remaining);const duration=(this.activeRoute.duration||0)*(progress.remaining/Math.max(this.activeRoute.distance||1,1));document.getElementById('nav-time-left').textContent=this.formatDuration(duration);document.getElementById('nav-speed').textContent=Math.round(this.currentPosition.speed||0);
-    const dest=this.selectedDestination;if(dest){const arriveD=this.haversine(this.currentPosition.lat,this.currentPosition.lng,dest.lat,dest.lng);if(arriveD<45){document.getElementById('nav-arrow').textContent='🏁';document.getElementById('nav-next-distance').textContent='وصلت';document.getElementById('nav-instruction-text').textContent=`وصلت إلى ${dest.name||'وجهتك'}`;if(!this._arrivalAnnounced){this._arrivalAnnounced=true;this.voiceAssistant.playArrivalSuccess();this.voiceAssistant.speak('وصلت إلى وجهتك. حمداً لله على السلامة.',true)}}}
+
+    const progress=this.getRouteProgress();
+    const navHeading=this.navigationHeading(progress.index);
+    this.currentPosition.navHeading=navHeading;
+    this.mapEngine.updateUserPosition(this.currentPosition,true);
+    this.mapEngine.adjustNavigationView(this.currentPosition,nextDistance,navHeading);
+    this.mapEngine.updateRouteProgress(progress.index);
+    this.mapEngine.showTurnMarker(current,nextDistance);
+
+    document.getElementById('nav-distance-left').textContent=this.formatDistance(progress.remaining);
+    const duration=(this.activeRoute.duration||0)*(progress.remaining/Math.max(this.activeRoute.distance||1,1));
+    document.getElementById('nav-time-left').textContent=this.formatDuration(duration);
+    document.getElementById('nav-speed').textContent=Math.round(this.currentPosition.speed||0);
+
+    const dest=this.selectedDestination;if(dest){const arriveD=this.haversine(this.currentPosition.lat,this.currentPosition.lng,dest.lat,dest.lng);if(arriveD<45){document.getElementById('nav-arrow').textContent='🏁';document.getElementById('nav-next-distance').textContent='وصلت';document.getElementById('nav-instruction-text').textContent=`وصلت إلى ${dest.name||'وجهتك'}`;this.mapEngine.hideTurnMarker();if(!this._arrivalAnnounced){this._arrivalAnnounced=true;this.voiceAssistant.playArrivalSuccess();this.voiceAssistant.speak('وصلت إلى وجهتك. حمداً لله على السلامة.',true)}}}
+  }
+
+  navigationHeading(routeIndex=0){
+    const gpsHeading=this.currentPosition?.heading;
+    if(Number.isFinite(gpsHeading)&&(this.currentPosition?.speed||0)>3)return gpsHeading;
+    const coords=this.activeRoute?.geometry?.coordinates||[];
+    if(coords.length<2)return 0;
+    const i=Math.max(0,Math.min(coords.length-2,Number(routeIndex)||0));
+    const j=Math.min(coords.length-1,i+Math.max(2,Math.min(8,coords.length-i-1)));
+    return this.bearing(coords[i][1],coords[i][0],coords[j][1],coords[j][0]);
+  }
+
+  bearing(lat1,lon1,lat2,lon2){
+    const toRad=x=>x*Math.PI/180;
+    const y=Math.sin(toRad(lon2-lon1))*Math.cos(toRad(lat2));
+    const x=Math.cos(toRad(lat1))*Math.sin(toRad(lat2))-Math.sin(toRad(lat1))*Math.cos(toRad(lat2))*Math.cos(toRad(lon2-lon1));
+    return (Math.atan2(y,x)*180/Math.PI+360)%360;
+  }
+
+  updateOrientationButton(){
+    const btn=document.getElementById('btn-nav-orientation');if(!btn)return;
+    btn.textContent=this.mapEngine?.headingUp?'🧭':'N';
+    btn.title=this.mapEngine?.headingUp?'اتجاه السير للأعلى':'الشمال للأعلى';
+    btn.classList.toggle('active',!!this.mapEngine?.headingUp);
   }
 
   getRouteProgress(){
